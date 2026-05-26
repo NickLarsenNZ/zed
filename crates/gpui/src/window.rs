@@ -2111,6 +2111,10 @@ impl<'a> WindowContext<'a> {
             "this method can only be called during paint"
         );
 
+        if shadows.is_empty() {
+            return;
+        }
+
         let scale_factor = self.scale_factor();
         let content_mask = self.content_mask();
         for shadow in shadows {
