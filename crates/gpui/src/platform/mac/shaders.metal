@@ -155,14 +155,16 @@ vertex ShadowVertexOutput shadow_vertex(
   float2 unit_vertex = unit_vertices[unit_vertex_id];
   Shadow shadow = shadows[shadow_id];
 
-  float margin = 3. * shadow.blur_radius;
-  // Set the bounds of the shadow and adjust its size based on the shadow's
-  // spread radius to achieve the spreading effect
+  // Outer shadows need expanded bounds so the blur extends beyond the element.
+  // Inset shadows are clipped to the element bounds, so no expansion needed.
   Bounds_ScaledPixels bounds = shadow.bounds;
-  bounds.origin.x -= margin;
-  bounds.origin.y -= margin;
-  bounds.size.width += 2. * margin;
-  bounds.size.height += 2. * margin;
+  if (shadow.inset == 0) {
+    float margin = 3. * shadow.blur_radius;
+    bounds.origin.x -= margin;
+    bounds.origin.y -= margin;
+    bounds.size.width += 2. * margin;
+    bounds.size.height += 2. * margin;
+  }
 
   float4 device_position =
       to_device_position(unit_vertex, bounds, viewport_size);
@@ -217,6 +219,11 @@ fragment float4 shadow_fragment(ShadowFragmentInput input [[stage_in]],
                           corner_radius, half_size) *
              gaussian(y, shadow.blur_radius) * step;
     y += step;
+  }
+
+  // Inset shadows fade inward from edges instead of outward.
+  if (shadow.inset > 0) {
+    alpha = 1.0 - alpha;
   }
 
   return input.color * float4(1., 1., 1., alpha);

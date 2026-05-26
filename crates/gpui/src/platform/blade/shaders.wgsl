@@ -299,6 +299,7 @@ struct Shadow {
     corner_radii: Corners,
     content_mask: Bounds,
     color: Hsla,
+    inset: u32,
 }
 var<storage, read> b_shadows: array<Shadow>;
 
@@ -315,11 +316,13 @@ fn vs_shadow(@builtin(vertex_index) vertex_id: u32, @builtin(instance_index) ins
     let unit_vertex = vec2<f32>(f32(vertex_id & 1u), 0.5 * f32(vertex_id & 2u));
     var shadow = b_shadows[instance_id];
 
-    let margin = 3.0 * shadow.blur_radius;
-    // Set the bounds of the shadow and adjust its size based on the shadow's
-    // spread radius to achieve the spreading effect
-    shadow.bounds.origin -= vec2<f32>(margin);
-    shadow.bounds.size += 2.0 * vec2<f32>(margin);
+    // Outer shadows need expanded bounds so the blur extends beyond the element.
+    // Inset shadows are clipped to the element bounds, so no expansion needed.
+    if (shadow.inset == 0u) {
+        let margin = 3.0 * shadow.blur_radius;
+        shadow.bounds.origin -= vec2<f32>(margin);
+        shadow.bounds.size += 2.0 * vec2<f32>(margin);
+    }
 
     var out = ShadowVarying();
     out.position = to_device_position(unit_vertex, shadow.bounds);
@@ -358,6 +361,11 @@ fn fs_shadow(input: ShadowVarying) -> @location(0) vec4<f32> {
             shadow.blur_radius, corner_radius, half_size);
         alpha +=  blur * gaussian(y, shadow.blur_radius) * step;
         y += step;
+    }
+
+    // Inset shadows fade inward from edges instead of outward.
+    if (shadow.inset > 0u) {
+        alpha = 1.0 - alpha;
     }
 
     return blend_color(input.color, alpha);
