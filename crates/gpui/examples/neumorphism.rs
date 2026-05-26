@@ -1,61 +1,9 @@
 use gpui::{
-    div, point, px, rgb, size, App, AppContext, Bounds, BoxShadow, Div, IntoElement,
-    ParentElement as _, Render, Styled as _, ViewContext, VisualContext as _, WindowBounds,
-    WindowOptions,
+    div, point, px, rgb, size, App, AppContext, Bounds, BoxShadow, Div, Hsla,
+    InteractiveElement as _, IntoElement, MouseButton, MouseDownEvent, ParentElement as _, Render,
+    Rgba, Styled as _, ViewContext, VisualContext as _, WindowBounds, WindowOptions,
 };
 use smallvec::{smallvec, SmallVec};
-
-/// RGB surface colors.
-///
-/// Using hex for human comprehension of colours.
-/// Derived colors are computed by uniformly darkening BG per channel.
-mod colors {
-    /// Subtract `amount` from each RGB channel of a hex color, clamping to 0.
-    const fn darken(color: u32, amount: u32) -> u32 {
-        let r = ((color >> 16) & 0xFF).saturating_sub(amount);
-        let g = ((color >> 8) & 0xFF).saturating_sub(amount);
-        let b = (color & 0xFF).saturating_sub(amount);
-        (r << 16) | (g << 8) | b
-    }
-
-    /// Light gray background.
-    ///
-    /// Neumorphism requires a muted, non-white background
-    /// so that both the light highlight and dark shadow are visible against it.
-    pub const BG: u32 = 0xe0e5ec;
-
-    /// Dark gray for readable text contrast against BG.
-    pub const TEXT: u32 = 0x4a5568;
-
-    /// Slightly darker than BG, used to fake a pressed/concave surface.
-    pub const BG_PRESSED: u32 = darken(BG, 15);
-
-    /// Background for the inset placeholder card.
-    pub const BG_INSET: u32 = darken(BG, 8);
-
-    /// Border color for the inset placeholder card.
-    pub const BORDER_INSET: u32 = darken(BG, 24);
-}
-
-/// HSLA shadow colors with alpha for transparency.
-///
-/// Using HSLA for human comprehension of grayscale with varying alpha.
-#[rustfmt::skip]
-mod shadows {
-    use gpui::Hsla;
-
-    /// White highlight cast from the top-left light source.
-    pub const HIGHLIGHT: Hsla = Hsla { h: 0., s: 0., l: 1., a: 0.7 };
-
-    /// Dark shadow cast from the bottom-right, opposite the light source.
-    pub const SHADOW: Hsla = Hsla { h: 0., s: 0., l: 0., a: 0.15 };
-
-    /// Softer dark shadow for the fake pressed state.
-    pub const SHADOW_PRESSED: Hsla = Hsla { h: 0., s: 0., l: 0., a: 0.1 };
-
-    /// Softer highlight for the fake pressed state.
-    pub const HIGHLIGHT_PRESSED: Hsla = Hsla { h: 0., s: 0., l: 1., a: 0.5 };
-}
 
 /// Layout dimensions in pixels.
 mod layout {
@@ -66,74 +14,241 @@ mod layout {
     pub const WINDOW_HEIGHT: f32 = 550.;
 }
 
-/// Build the pair of box shadows that create a raised neumorphic surface.
+/// Neumorphic color theme.
 ///
-/// `distance` controls how far the shadows are offset from the element.
-/// `blur` controls the softness of the shadow edges.
-fn neumorphic_shadow(distance: f32, blur: f32) -> SmallVec<[BoxShadow; 2]> {
-    smallvec![
-        BoxShadow {
-            color: shadows::HIGHLIGHT,
-            offset: point(px(-distance), px(-distance)),
-            blur_radius: px(blur),
-            spread_radius: px(0.),
-        },
-        BoxShadow {
-            color: shadows::SHADOW,
-            offset: point(px(distance), px(distance)),
-            blur_radius: px(blur),
-            spread_radius: px(0.),
-        },
-    ]
+/// All surface colors are derived from a single `bg` base by uniformly
+/// shifting each RGB channel. Shadow colors are grayscale HSLA with
+/// alpha values tuned for the base lightness.
+struct Theme {
+    /// Base surface color (RGB hex).
+    bg: u32,
+    /// Text color (RGB hex).
+    text: u32,
+    /// White highlight cast from the top-left light source.
+    highlight: Hsla,
+    /// Dark shadow cast from the bottom-right.
+    shadow: Hsla,
+    /// Softer highlight for the fake pressed state.
+    highlight_pressed: Hsla,
+    /// Softer shadow for the fake pressed state.
+    shadow_pressed: Hsla,
+    /// Shadow offset and blur for the standard raised depth.
+    raised_distance: f32,
+    raised_blur: f32,
+    /// Shadow offset and blur for the deep raised depth.
+    deep_distance: f32,
+    deep_blur: f32,
+    /// Shadow offset and blur for the subtle raised depth.
+    subtle_distance: f32,
+    subtle_blur: f32,
+    /// Shadow offset and blur for the pressed state.
+    pressed_distance: f32,
+    pressed_blur: f32,
+    /// How much the shadow expands beyond the element bounds.
+    spread_radius: f32,
+    /// How much to darken BG for the pressed surface.
+    pressed_darken: u32,
+    /// How much to darken BG for the inset surface.
+    inset_darken: u32,
+    /// How much to darken BG for the inset border.
+    border_darken: u32,
 }
 
-/// A basic card element with the shared neumorphic background and sizing.
-fn card(label: &str) -> Div {
-    div()
-        .flex()
-        .flex_col()
-        .items_center()
-        .justify_center()
-        .gap_2()
-        .w(px(layout::CARD_SIZE))
-        .h(px(layout::CARD_SIZE))
-        .rounded(px(layout::CARD_RADIUS))
-        .bg(rgb(colors::BG))
-        .text_color(rgb(colors::TEXT))
-        .child(label.to_string())
+impl Theme {
+    #[rustfmt::skip]
+    fn light() -> Self {
+        Self {
+            bg:                0xe0e5ec,
+            text:              0x4a5568,
+            highlight:         Hsla { h: 0., s: 0., l: 1.0, a: 0.7 },
+            shadow:            Hsla { h: 0., s: 0., l: 0.0, a: 0.15 },
+            highlight_pressed: Hsla { h: 0., s: 0., l: 1.0, a: 0.5 },
+            shadow_pressed:    Hsla { h: 0., s: 0., l: 0.0, a: 0.1 },
+            raised_distance:   6., raised_blur:   12.,
+            deep_distance:    10., deep_blur:     20.,
+            subtle_distance:   3., subtle_blur:    6.,
+            pressed_distance:  2., pressed_blur:   4.,
+            spread_radius:     0.,
+            pressed_darken:    15,
+            inset_darken:       8,
+            border_darken:     24,
+        }
+    }
+
+    #[rustfmt::skip]
+    fn dark() -> Self {
+        Self {
+            bg:                0x2d3440,
+            text:              0xc8cdd4,
+            highlight:         Hsla { h: 0., s: 0., l: 1.0, a: 0.07 },
+            shadow:            Hsla { h: 0., s: 0., l: 0.0, a: 0.5 },
+            highlight_pressed: Hsla { h: 0., s: 0., l: 1.0, a: 0.04 },
+            shadow_pressed:    Hsla { h: 0., s: 0., l: 0.0, a: 0.4 },
+            raised_distance:   5., raised_blur:   10.,
+            deep_distance:     8., deep_blur:     16.,
+            subtle_distance:   2., subtle_blur:    5.,
+            pressed_distance:  2., pressed_blur:   4.,
+            spread_radius:     0.,
+            pressed_darken:    10,
+            inset_darken:       6,
+            border_darken:     16,
+        }
+    }
+
+    /// Subtract `amount` from each RGB channel, clamping to 0.
+    fn darken(color: u32, amount: u32) -> u32 {
+        let r = ((color >> 16) & 0xFF).saturating_sub(amount);
+        let g = ((color >> 8) & 0xFF).saturating_sub(amount);
+        let b = (color & 0xFF).saturating_sub(amount);
+        (r << 16) | (g << 8) | b
+    }
+
+    fn bg(&self) -> Rgba {
+        rgb(self.bg)
+    }
+    fn text(&self) -> Rgba {
+        rgb(self.text)
+    }
+    fn bg_pressed(&self) -> Rgba {
+        rgb(Self::darken(self.bg, self.pressed_darken))
+    }
+    fn bg_inset(&self) -> Rgba {
+        rgb(Self::darken(self.bg, self.inset_darken))
+    }
+    fn border_inset(&self) -> Rgba {
+        rgb(Self::darken(self.bg, self.border_darken))
+    }
+
+    /// Build a highlight/shadow pair at the given distance and blur.
+    fn shadow_pair(
+        &self,
+        highlight: Hsla,
+        shadow: Hsla,
+        distance: f32,
+        blur: f32,
+    ) -> SmallVec<[BoxShadow; 2]> {
+        smallvec![
+            BoxShadow {
+                color: highlight,
+                offset: point(px(-distance), px(-distance)),
+                blur_radius: px(blur),
+                spread_radius: px(self.spread_radius),
+            },
+            BoxShadow {
+                color: shadow,
+                offset: point(px(distance), px(distance)),
+                blur_radius: px(blur),
+                spread_radius: px(self.spread_radius),
+            },
+        ]
+    }
+
+    /// Standard raised neumorphic surface.
+    fn raised_shadow(&self) -> SmallVec<[BoxShadow; 2]> {
+        self.shadow_pair(
+            self.highlight,
+            self.shadow,
+            self.raised_distance,
+            self.raised_blur,
+        )
+    }
+
+    /// Deeply raised neumorphic surface.
+    fn deep_shadow(&self) -> SmallVec<[BoxShadow; 2]> {
+        self.shadow_pair(
+            self.highlight,
+            self.shadow,
+            self.deep_distance,
+            self.deep_blur,
+        )
+    }
+
+    /// Subtly raised neumorphic surface.
+    fn subtle_shadow(&self) -> SmallVec<[BoxShadow; 2]> {
+        self.shadow_pair(
+            self.highlight,
+            self.shadow,
+            self.subtle_distance,
+            self.subtle_blur,
+        )
+    }
+
+    /// Inverted, softer shadows to fake a pressed/concave surface.
+    fn pressed_shadow(&self) -> SmallVec<[BoxShadow; 2]> {
+        self.shadow_pair(
+            self.shadow_pressed,
+            self.highlight_pressed,
+            self.pressed_distance,
+            self.pressed_blur,
+        )
+    }
+
+    /// A basic card element with the shared neumorphic background and sizing.
+    fn card(&self, label: &str) -> Div {
+        div()
+            .flex()
+            .flex_col()
+            .items_center()
+            .justify_center()
+            .gap_2()
+            .w(px(layout::CARD_SIZE))
+            .h(px(layout::CARD_SIZE))
+            .rounded(px(layout::CARD_RADIUS))
+            .bg(self.bg())
+            .text_color(self.text())
+            .child(label.to_string())
+    }
 }
 
-struct Neumorphism;
+struct Neumorphism {
+    dark: bool,
+}
+
+impl Neumorphism {
+    fn theme(&self) -> Theme {
+        if self.dark {
+            Theme::dark()
+        } else {
+            Theme::light()
+        }
+    }
+}
 
 impl Render for Neumorphism {
-    fn render(&mut self, _cx: &mut ViewContext<Self>) -> impl IntoElement {
-        // NOTE: Ignoring gpui patterns for
+    fn render(&mut self, cx: &mut ViewContext<Self>) -> impl IntoElement {
+        let theme = self.theme();
+        let mode_label = if self.dark { "Light mode" } else { "Dark mode" };
+
         div()
             .flex()
             .flex_col()
             .size_full()
-            .bg(rgb(colors::BG))
+            .bg(theme.bg())
             .items_center()
             .justify_center()
             .gap_8()
+            .on_mouse_down(
+                MouseButton::Right,
+                cx.listener(|this, _: &MouseDownEvent, cx| {
+                    this.dark = !this.dark;
+                    cx.notify();
+                }),
+            )
             .child(
                 div()
                     .text_xl()
-                    .text_color(rgb(colors::TEXT))
+                    .text_color(theme.text())
                     .child("Neumorphic Shadows in GPUI"),
             )
-            // Row of cards
+            // Row of raised cards
             .child(
                 div()
                     .flex()
                     .flex_row()
                     .gap_8()
-                    // Raised (standard neumorphic)
-                    .child(card("Raised").shadow(neumorphic_shadow(6., 12.)))
-                    // Raised with more depth
-                    .child(card("Deep").shadow(neumorphic_shadow(10., 20.)))
-                    // Subtle
-                    .child(card("Subtle").shadow(neumorphic_shadow(3., 6.))),
+                    .child(theme.card("Raised").shadow(theme.raised_shadow()))
+                    .child(theme.card("Deep").shadow(theme.deep_shadow()))
+                    .child(theme.card("Subtle").shadow(theme.subtle_shadow())),
             )
             // Second row -- showing the limitation
             .child(
@@ -144,22 +259,10 @@ impl Render for Neumorphism {
                     // Faked "pressed" via darker bg + inverted shadow
                     // This is a workaround -- real inset shadows would be better
                     .child(
-                        card("Pressed (fake)")
-                            .bg(rgb(colors::BG_PRESSED))
-                            .shadow(smallvec![
-                                BoxShadow {
-                                    color: shadows::SHADOW_PRESSED,
-                                    offset: point(px(-2.), px(-2.)),
-                                    blur_radius: px(4.),
-                                    spread_radius: px(0.),
-                                },
-                                BoxShadow {
-                                    color: shadows::HIGHLIGHT_PRESSED,
-                                    offset: point(px(2.), px(2.)),
-                                    blur_radius: px(4.),
-                                    spread_radius: px(0.),
-                                },
-                            ]),
+                        theme
+                            .card("Pressed (fake)")
+                            .bg(theme.bg_pressed())
+                            .shadow(theme.pressed_shadow()),
                     )
                     // Circular raised element
                     .child(
@@ -170,18 +273,25 @@ impl Render for Neumorphism {
                             .w(px(layout::CIRCLE_SIZE))
                             .h(px(layout::CIRCLE_SIZE))
                             .rounded(px(layout::CIRCLE_SIZE / 2.))
-                            .bg(rgb(colors::BG))
-                            .text_color(rgb(colors::TEXT))
-                            .shadow(neumorphic_shadow(6., 12.))
+                            .bg(theme.bg())
+                            .text_color(theme.text())
+                            .shadow(theme.raised_shadow())
                             .child("Icon"),
                     )
                     // Placeholder for the inset shadow card (TODO)
                     .child(
-                        card("Inset (TODO)")
+                        theme
+                            .card("Inset (TODO)")
                             .border_1()
-                            .border_color(rgb(colors::BORDER_INSET))
-                            .bg(rgb(colors::BG_INSET)),
+                            .border_color(theme.border_inset())
+                            .bg(theme.bg_inset()),
                     ),
+            )
+            // Mode toggle hint
+            .child(
+                div()
+                    .text_color(theme.text())
+                    .child(format!("Right-click to switch to {mode_label}")),
             )
     }
 }
@@ -198,7 +308,7 @@ fn main() {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
                 ..Default::default()
             },
-            |cx| cx.new_view(|_cx| Neumorphism),
+            |cx| cx.new_view(|_cx| Neumorphism { dark: false }),
         );
     });
 }
