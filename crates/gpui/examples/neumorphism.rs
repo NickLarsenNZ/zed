@@ -133,12 +133,14 @@ impl Theme {
                 offset: point(px(-distance), px(-distance)),
                 blur_radius: px(blur),
                 spread_radius: px(self.spread_radius),
+                inset: false,
             },
             BoxShadow {
                 color: shadow,
                 offset: point(px(distance), px(distance)),
                 blur_radius: px(blur),
                 spread_radius: px(self.spread_radius),
+                inset: false,
             },
         ]
     }
