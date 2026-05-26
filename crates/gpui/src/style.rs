@@ -407,12 +407,12 @@ impl Style {
         }
 
         let rem_size = cx.rem_size();
+        let corner_radii = self.corner_radii.to_pixels(bounds.size, rem_size);
 
-        cx.paint_shadows(
-            bounds,
-            self.corner_radii.to_pixels(bounds.size, rem_size),
-            &self.box_shadow,
-        );
+        let (inset_shadows, outer_shadows): (SmallVec<[BoxShadow; 2]>, SmallVec<[BoxShadow; 2]>) =
+            self.box_shadow.iter().cloned().partition(|s| s.inset);
+
+        cx.paint_shadows(bounds, corner_radii, &outer_shadows);
 
         let background_color = self.background.as_ref().and_then(Fill::color);
         if background_color.map_or(false, |color| !color.is_transparent()) {
@@ -420,12 +420,14 @@ impl Style {
             border_color.a = 0.;
             cx.paint_quad(quad(
                 bounds,
-                self.corner_radii.to_pixels(bounds.size, rem_size),
+                corner_radii,
                 background_color.unwrap_or_default(),
                 Edges::default(),
                 border_color,
             ));
         }
+
+        cx.paint_shadows(bounds, corner_radii, &inset_shadows);
 
         continuation(cx);
 
