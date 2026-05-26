@@ -484,6 +484,9 @@ pub(crate) struct Shadow {
     pub corner_radii: Corners<ScaledPixels>,
     pub content_mask: ContentMask<ScaledPixels>,
     pub color: Hsla,
+    // Whether this shadow renders inside the element bounds (>=1) or outside (0)
+    // Uses `u32` instead of `bool` for GPU struct alignment.
+    pub inset: u32,
 }
 
 impl Ord for Shadow {

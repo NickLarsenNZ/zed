@@ -2124,6 +2124,7 @@ impl<'a> WindowContext<'a> {
                 content_mask: content_mask.scale(scale_factor),
                 corner_radii: corner_radii.scale(scale_factor),
                 color: shadow.color,
+                inset: shadow.inset as u32,
             });
         }
     }
