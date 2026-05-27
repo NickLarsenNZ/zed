@@ -365,8 +365,11 @@ fn fs_shadow(input: ShadowVarying) -> @location(0) vec4<f32> {
     }
 
     // Inset shadows fade inward from edges instead of outward.
+    // Mask to the rounded rect so the shadow doesn't bleed past corners.
     if (shadow.inset > 0u) {
         alpha = 1.0 - alpha;
+        let sdf = quad_sdf(input.position.xy, shadow.bounds, shadow.corner_radii);
+        alpha *= saturate(0.5 - sdf);
     }
 
     return blend_color(input.color, alpha);

@@ -222,8 +222,11 @@ fragment float4 shadow_fragment(ShadowFragmentInput input [[stage_in]],
   }
 
   // Inset shadows fade inward from edges instead of outward.
+  // Mask to the rounded rect so the shadow doesn't bleed past corners.
   if (shadow.inset > 0) {
     alpha = 1.0 - alpha;
+    float sdf = quad_sdf(input.position.xy, shadow.bounds, shadow.corner_radii);
+    alpha *= saturate(0.5 - sdf);
   }
 
   return input.color * float4(1., 1., 1., alpha);
