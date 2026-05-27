@@ -487,6 +487,8 @@ pub(crate) struct Shadow {
     // Whether this shadow renders inside the element bounds (>=1) or outside (0)
     // Uses `u32` instead of `bool` for GPU struct alignment.
     pub inset: u32,
+    // Padding to match WGSL struct alignment (rounds up to 8-byte boundary).
+    pub _padding: u32,
 }
 
 impl Ord for Shadow {

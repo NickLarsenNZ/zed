@@ -300,6 +300,7 @@ struct Shadow {
     content_mask: Bounds,
     color: Hsla,
     inset: u32,
+    _padding: u32,
 }
 var<storage, read> b_shadows: array<Shadow>;
 

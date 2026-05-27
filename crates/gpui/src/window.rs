@@ -2129,6 +2129,7 @@ impl<'a> WindowContext<'a> {
                 corner_radii: corner_radii.scale(scale_factor),
                 color: shadow.color,
                 inset: shadow.inset as u32,
+                _padding: 0,
             });
         }
     }
