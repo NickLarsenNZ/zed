@@ -605,6 +605,45 @@ pub trait Styled: Sized {
         self
     }
 
+    /// Sets an inset box shadow on the element.
+    /// [Docs](https://tailwindcss.com/docs/box-shadow#adding-an-inset-shadow)
+    fn shadow_inset_2xs(mut self) -> Self {
+        self.style().box_shadow = Some(smallvec![BoxShadow {
+            color: hsla(0., 0., 0., 0.15),
+            offset: point(px(0.), px(3.)),
+            blur_radius: px(2.),
+            spread_radius: px(0.),
+            inset: true,
+        }]);
+        self
+    }
+
+    /// Sets an inset box shadow on the element.
+    /// [Docs](https://tailwindcss.com/docs/box-shadow#adding-an-inset-shadow)
+    fn shadow_inset_xs(mut self) -> Self {
+        self.style().box_shadow = Some(smallvec![BoxShadow {
+            color: hsla(0., 0., 0., 0.15),
+            offset: point(px(0.), px(4.)),
+            blur_radius: px(3.),
+            spread_radius: px(0.),
+            inset: true,
+        }]);
+        self
+    }
+
+    /// Sets an inset box shadow on the element.
+    /// [Docs](https://tailwindcss.com/docs/box-shadow#adding-an-inset-shadow)
+    fn shadow_inset_sm(mut self) -> Self {
+        self.style().box_shadow = Some(smallvec![BoxShadow {
+            color: hsla(0., 0., 0., 0.15),
+            offset: point(px(0.), px(5.)),
+            blur_radius: px(4.),
+            spread_radius: px(0.),
+            inset: true,
+        }]);
+        self
+    }
+
     /// Get the text style that has been configured on this element.
     fn text_style(&mut self) -> &mut Option<TextStyleRefinement> {
         let style: &mut StyleRefinement = self.style();
