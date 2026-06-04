@@ -28,9 +28,9 @@ struct Theme {
     highlight: Hsla,
     /// Dark shadow cast from the bottom-right.
     shadow: Hsla,
-    /// Softer highlight for the fake pressed state.
+    /// Softer highlight for the pressed state.
     highlight_pressed: Hsla,
-    /// Softer shadow for the fake pressed state.
+    /// Softer shadow for the pressed state.
     shadow_pressed: Hsla,
     /// Shadow offset and blur for the standard raised depth.
     raised_distance: f32,
@@ -46,12 +46,6 @@ struct Theme {
     pressed_blur: f32,
     /// How much the shadow expands beyond the element bounds.
     spread_radius: f32,
-    /// How much to darken BG for the pressed surface.
-    pressed_darken: u32,
-    /// How much to darken BG for the inset surface.
-    inset_darken: u32,
-    /// How much to darken BG for the inset border.
-    border_darken: u32,
 }
 
 impl Theme {
@@ -62,16 +56,13 @@ impl Theme {
             text:              0x4a5568,
             highlight:         Hsla { h: 0., s: 0., l: 1.0, a: 0.7 },
             shadow:            Hsla { h: 0., s: 0., l: 0.0, a: 0.15 },
-            highlight_pressed: Hsla { h: 0., s: 0., l: 1.0, a: 0.5 },
-            shadow_pressed:    Hsla { h: 0., s: 0., l: 0.0, a: 0.1 },
+            highlight_pressed: Hsla { h: 0., s: 0., l: 1.0, a: 0.7 },
+            shadow_pressed:    Hsla { h: 0., s: 0., l: 0.0, a: 0.2 },
             raised_distance:   6., raised_blur:   12.,
             deep_distance:    10., deep_blur:     20.,
             subtle_distance:   3., subtle_blur:    6.,
-            pressed_distance:  2., pressed_blur:   4.,
+            pressed_distance:  6., pressed_blur:   12.,
             spread_radius:     0.,
-            pressed_darken:    15,
-            inset_darken:       8,
-            border_darken:     24,
         }
     }
 
@@ -89,18 +80,7 @@ impl Theme {
             subtle_distance:   2., subtle_blur:    5.,
             pressed_distance:  2., pressed_blur:   4.,
             spread_radius:     0.,
-            pressed_darken:    10,
-            inset_darken:       6,
-            border_darken:     16,
         }
-    }
-
-    /// Subtract `amount` from each RGB channel, clamping to 0.
-    fn darken(color: u32, amount: u32) -> u32 {
-        let r = ((color >> 16) & 0xFF).saturating_sub(amount);
-        let g = ((color >> 8) & 0xFF).saturating_sub(amount);
-        let b = (color & 0xFF).saturating_sub(amount);
-        (r << 16) | (g << 8) | b
     }
 
     fn bg(&self) -> Rgba {
@@ -108,15 +88,6 @@ impl Theme {
     }
     fn text(&self) -> Rgba {
         rgb(self.text)
-    }
-    fn bg_pressed(&self) -> Rgba {
-        rgb(Self::darken(self.bg, self.pressed_darken))
-    }
-    fn bg_inset(&self) -> Rgba {
-        rgb(Self::darken(self.bg, self.inset_darken))
-    }
-    fn border_inset(&self) -> Rgba {
-        rgb(Self::darken(self.bg, self.border_darken))
     }
 
     /// Build a highlight/shadow pair at the given distance and blur.
@@ -126,6 +97,7 @@ impl Theme {
         shadow: Hsla,
         distance: f32,
         blur: f32,
+        inset: bool,
     ) -> SmallVec<[BoxShadow; 2]> {
         smallvec![
             BoxShadow {
@@ -133,14 +105,14 @@ impl Theme {
                 offset: point(px(-distance), px(-distance)),
                 blur_radius: px(blur),
                 spread_radius: px(self.spread_radius),
-                inset: false,
+                inset,
             },
             BoxShadow {
                 color: shadow,
                 offset: point(px(distance), px(distance)),
                 blur_radius: px(blur),
                 spread_radius: px(self.spread_radius),
-                inset: false,
+                inset,
             },
         ]
     }
@@ -152,6 +124,7 @@ impl Theme {
             self.shadow,
             self.raised_distance,
             self.raised_blur,
+            false,
         )
     }
 
@@ -162,6 +135,7 @@ impl Theme {
             self.shadow,
             self.deep_distance,
             self.deep_blur,
+            false,
         )
     }
 
@@ -172,16 +146,18 @@ impl Theme {
             self.shadow,
             self.subtle_distance,
             self.subtle_blur,
+            false,
         )
     }
 
-    /// Inverted, softer shadows to fake a pressed/concave surface.
+    /// Pressed/concave surface using real inset shadows.
     fn pressed_shadow(&self) -> SmallVec<[BoxShadow; 2]> {
         self.shadow_pair(
             self.shadow_pressed,
             self.highlight_pressed,
             self.pressed_distance,
             self.pressed_blur,
+            true,
         )
     }
 
@@ -252,20 +228,14 @@ impl Render for Neumorphism {
                     .child(theme.card("Deep").shadow(theme.deep_shadow()))
                     .child(theme.card("Subtle").shadow(theme.subtle_shadow())),
             )
-            // Second row -- showing the limitation
+            // Second row -- inset shadows
             .child(
                 div()
                     .flex()
                     .flex_row()
                     .gap_8()
-                    // Faked "pressed" via darker bg + inverted shadow
-                    // This is a workaround -- real inset shadows would be better
-                    .child(
-                        theme
-                            .card("Pressed (fake)")
-                            .bg(theme.bg_pressed())
-                            .shadow(theme.pressed_shadow()),
-                    )
+                    // Pressed card using real inset shadows
+                    .child(theme.card("Pressed").shadow(theme.pressed_shadow()))
                     // Circular raised element
                     .child(
                         div()
@@ -280,14 +250,8 @@ impl Render for Neumorphism {
                             .shadow(theme.raised_shadow())
                             .child("Icon"),
                     )
-                    // Placeholder for the inset shadow card (TODO)
-                    .child(
-                        theme
-                            .card("Inset (TODO)")
-                            .border_1()
-                            .border_color(theme.border_inset())
-                            .bg(theme.bg_inset()),
-                    ),
+                    // Inset card
+                    .child(theme.card("Inset").shadow(theme.pressed_shadow())),
             )
             // Mode toggle hint
             .child(
