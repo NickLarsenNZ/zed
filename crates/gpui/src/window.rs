@@ -2119,13 +2119,23 @@ impl<'a> WindowContext<'a> {
         let content_mask = self.content_mask();
         for shadow in shadows {
             let mut shadow_bounds = bounds;
-            if !shadow.inset {
+            let mut shadow_offset = Point::default();
+            if shadow.inset {
+                // Inset shadows can't apply offset to bounds because the SDF
+                // mask uses bounds to clip the shadow to the element's rounded
+                // rect. Instead, pass the offset to the shader to shift only
+                // the blur center.
+                shadow_offset = shadow.offset;
+            } else {
+                // Outer shadows shift and expand the shadow quad so it
+                // renders behind the element at the desired offset and spread.
                 shadow_bounds.origin += shadow.offset;
                 shadow_bounds.dilate(shadow.spread_radius);
             }
             self.window.next_frame.scene.insert_primitive(Shadow {
                 order: 0,
                 blur_radius: shadow.blur_radius.scale(scale_factor),
+                offset: shadow_offset.scale(scale_factor),
                 bounds: shadow_bounds.scale(scale_factor),
                 content_mask: content_mask.scale(scale_factor),
                 corner_radii: corner_radii.scale(scale_factor),

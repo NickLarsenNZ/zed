@@ -189,6 +189,12 @@ fragment float4 shadow_fragment(ShadowFragmentInput input [[stage_in]],
   float2 half_size = size / 2.;
   float2 center = origin + half_size;
   float2 point = input.position.xy - center;
+  // For inset shadows, shift the blur center by the offset so the shadow
+  // is heavier on one side (e.g. assuming light-mode: dark top-left, light
+  // bottom-right).
+  if (shadow.inset > 0) {
+    point += float2(shadow.offset.x, shadow.offset.y);
+  }
   float corner_radius;
   if (point.x < 0.) {
     if (point.y < 0.) {

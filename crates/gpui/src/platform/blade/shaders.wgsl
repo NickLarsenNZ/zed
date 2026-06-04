@@ -295,6 +295,7 @@ fn fs_quad(input: QuadVarying) -> @location(0) vec4<f32> {
 struct Shadow {
     order: u32,
     blur_radius: f32,
+    offset: vec2<f32>,
     bounds: Bounds,
     corner_radii: Corners,
     content_mask: Bounds,
@@ -343,7 +344,12 @@ fn fs_shadow(input: ShadowVarying) -> @location(0) vec4<f32> {
     let shadow = b_shadows[input.shadow_id];
     let half_size = shadow.bounds.size / 2.0;
     let center = shadow.bounds.origin + half_size;
-    let center_to_point = input.position.xy - center;
+    var center_to_point = input.position.xy - center;
+    // For inset shadows, shift the blur center by the offset so the shadow
+    // is heavier on one side (e.g. dark top-left, light bottom-right).
+    if (shadow.inset > 0u) {
+        center_to_point += shadow.offset;
+    }
 
     let corner_radius = pick_corner_radius(center_to_point, shadow.corner_radii);
 

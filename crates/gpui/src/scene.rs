@@ -480,6 +480,10 @@ impl From<Underline> for Primitive {
 pub(crate) struct Shadow {
     pub order: DrawOrder,
     pub blur_radius: ScaledPixels,
+    // Only used for inset shadows: shifts the blur center in the shader so
+    // the shadow is heavier on one side. Outer shadows apply their offset
+    // to bounds before reaching the shader, so this is zero for them.
+    pub offset: Point<ScaledPixels>,
     pub bounds: Bounds<ScaledPixels>,
     pub corner_radii: Corners<ScaledPixels>,
     pub content_mask: ContentMask<ScaledPixels>,
