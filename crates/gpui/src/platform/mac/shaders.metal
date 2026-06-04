@@ -193,7 +193,7 @@ fragment float4 shadow_fragment(ShadowFragmentInput input [[stage_in]],
   // is heavier on one side (e.g. assuming light-mode: dark top-left, light
   // bottom-right).
   if (shadow.inset > 0) {
-    point += float2(shadow.offset.x, shadow.offset.y);
+    point -= float2(shadow.offset.x, shadow.offset.y);
   }
   float corner_radius;
   if (point.x < 0.) {
@@ -227,8 +227,8 @@ fragment float4 shadow_fragment(ShadowFragmentInput input [[stage_in]],
     y += step;
   }
 
-  // Inset shadows fade inward from edges instead of outward.
-  // Mask to the rounded rect so the shadow doesn't bleed past corners.
+  // For inset shadows, invert the alpha (shadow appears inside instead of
+  // outside) and clip to the element's rounded rect.
   if (shadow.inset > 0) {
     alpha = 1.0 - alpha;
     float sdf = quad_sdf(input.position.xy, shadow.bounds, shadow.corner_radii);

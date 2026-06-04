@@ -348,7 +348,7 @@ fn fs_shadow(input: ShadowVarying) -> @location(0) vec4<f32> {
     // For inset shadows, shift the blur center by the offset so the shadow
     // is heavier on one side (e.g. dark top-left, light bottom-right).
     if (shadow.inset > 0u) {
-        center_to_point += shadow.offset;
+        center_to_point -= shadow.offset;
     }
 
     let corner_radius = pick_corner_radius(center_to_point, shadow.corner_radii);
@@ -366,12 +366,12 @@ fn fs_shadow(input: ShadowVarying) -> @location(0) vec4<f32> {
     for (var i = 0; i < 4; i += 1) {
         let blur = blur_along_x(center_to_point.x, center_to_point.y - y,
             shadow.blur_radius, corner_radius, half_size);
-        alpha +=  blur * gaussian(y, shadow.blur_radius) * step;
+        alpha += blur * gaussian(y, shadow.blur_radius) * step;
         y += step;
     }
 
-    // Inset shadows fade inward from edges instead of outward.
-    // Mask to the rounded rect so the shadow doesn't bleed past corners.
+    // For inset shadows, invert the alpha (shadow appears inside instead of
+    // outside) and clip to the element's rounded rect.
     if (shadow.inset > 0u) {
         alpha = 1.0 - alpha;
         let sdf = quad_sdf(input.position.xy, shadow.bounds, shadow.corner_radii);
