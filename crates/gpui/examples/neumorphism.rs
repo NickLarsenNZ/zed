@@ -151,10 +151,12 @@ impl Theme {
     }
 
     /// Pressed/concave surface using real inset shadows.
+    /// Uses the same color order as raised shadows (highlight first, shadow
+    /// second). The inset flag naturally reverses the visual direction.
     fn pressed_shadow(&self) -> SmallVec<[BoxShadow; 2]> {
         self.shadow_pair(
-            self.shadow_pressed,
             self.highlight_pressed,
+            self.shadow_pressed,
             self.pressed_distance,
             self.pressed_blur,
             true,
